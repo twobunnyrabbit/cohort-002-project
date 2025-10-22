@@ -4,13 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MailIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { useState } from "react";
-
-type Note = {
-  id: string;
-  subject: string;
-  content: string;
-  lastModified: string;
-};
+import { type Note } from '../search';
 
 function NoteCard({ note }: { note: Note }) {
   const [expanded, setExpanded] = useState(false);

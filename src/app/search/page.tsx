@@ -1,42 +1,12 @@
+import { SideBar } from "@/components/side-bar";
 import { TopBar } from "@/components/top-bar";
 import { SearchInput } from "./search-input";
-import { NoteList } from "./email-list";
+import { NoteList } from "./note-list";
 import { SearchPagination } from "./search-pagination";
 import { PerPageSelector } from "./per-page-selector";
-import fs from "fs/promises";
-import path from "path";
 import { loadChats, loadMemories } from "@/lib/persistence-layer";
 import { CHAT_LIMIT } from "../page";
-import { SideBar } from "@/components/side-bar";
-
-// interface Email {
-//   id: string;
-//   threadId: string;
-//   from: string;
-//   to: string | string[];
-//   cc?: string[];
-//   subject: string;
-//   body: string;
-//   timestamp: string;
-//   inReplyTo?: string;
-//   references?: string[];
-//   labels?: string[];
-//   arcId?: string;
-//   phaseId?: number;
-// }
-
-interface Note {
-  id: string;
-  subject: string;
-  content: string;
-  lastModified: string;
-}
-
-async function loadNotes(): Promise<Note[]> {
-  const filePath = path.join(process.cwd(), "data", "obsidian-notes.json");
-  const fileContent = await fs.readFile(filePath, "utf-8");
-  return JSON.parse(fileContent);
-}
+import { loadNotes, searchWithBM25 } from "../search";
 
 export default async function SearchPage(props: {
   searchParams: Promise<{ q?: string; page?: string; perPage?: string }>;
@@ -48,23 +18,26 @@ export default async function SearchPage(props: {
 
   const allNotes = await loadNotes();
 
-  // Transform emails to match the expected format
-  const transformedNotes = allNotes
-    .map((note) => ({
+  const notesWithScores = await searchWithBM25(
+    query.toLowerCase().split(" "),
+    allNotes
+  );
+
+  // Transform notes to match the expected format
+  const transformedNotes = notesWithScores
+    .map(({ note, score }) => ({
       id: note.id,
       subject: note.subject,
+      preview: note.content.substring(0, 100) + "...",
       content: note.content,
       lastModified: note.lastModified,
+      score: score,
     }))
     .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
 
-  // Filter emails based on search query
+  // Filter notes based on search query
   const filteredNotes = query
-    ? transformedNotes.filter(
-        (note) =>
-          note.subject.toLowerCase().includes(query.toLowerCase()) ||
-          note.content.toLowerCase().includes(query.toLowerCase())
-      )
+    ? transformedNotes.filter((note) => note.score > 0)
     : transformedNotes;
 
   const totalPages = Math.ceil(filteredNotes.length / perPage);
@@ -86,7 +59,7 @@ export default async function SearchPage(props: {
           <div className="max-w-4xl mx-auto xl:px-2 px-6 py-6">
             <div className="mb-6">
               <p className="text-sm text-muted-foreground">
-                Search through your email archive
+                Search through your note archive
               </p>
             </div>
 
@@ -106,7 +79,7 @@ export default async function SearchPage(props: {
                       &rdquo;
                     </>
                   ) : (
-                    <>Found {filteredNotes.length} emails</>
+                    <>Found {filteredNotes.length} notes</>
                   )}
                 </p>
               </div>
