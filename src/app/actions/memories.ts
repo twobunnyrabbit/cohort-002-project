@@ -7,6 +7,7 @@ import {
   deleteMemory,
   DB,
 } from "@/lib/persistence-layer";
+import { nanoid } from "nanoid";
 
 /**
  * Server action to fetch all memories
@@ -32,7 +33,7 @@ export async function createMemoryAction(opts: {
   content: string;
 }): Promise<DB.Memory> {
   const memory = await createMemory({
-    id: crypto.randomUUID(),
+    id: nanoid(),
     title: opts.title,
     content: opts.content,
   });

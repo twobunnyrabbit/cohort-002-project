@@ -14,6 +14,7 @@ import {
   streamText,
   UIMessage,
 } from "ai";
+import { nanoid } from "nanoid";
 import { generateTitleForChat } from "./generate-title";
 
 // Allow streaming responses up to 30 seconds
@@ -104,7 +105,7 @@ export async function POST(req: Request) {
 
       await generateTitlePromise;
     },
-    generateId: () => crypto.randomUUID(),
+    generateId: () => nanoid(),
     onFinish: async ({ responseMessage }) => {
       await appendToChatMessages(chatId, [responseMessage]);
     },

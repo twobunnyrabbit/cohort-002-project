@@ -38,6 +38,7 @@ import {
 import { DB } from "@/lib/persistence-layer";
 import { useChat } from "@ai-sdk/react";
 import { CopyIcon, RefreshCcwIcon } from "lucide-react";
+import { nanoid } from "nanoid";
 import { useSearchParams, useRouter } from "next/navigation";
 
 import { Fragment, startTransition, useState } from "react";
@@ -45,7 +46,7 @@ import type { MyMessage } from "./api/chat/route";
 import { useFocusWhenNoChatIdPresent } from "./use-focus-chat-when-new-chat-button-pressed";
 
 export const Chat = (props: { chat: DB.Chat | null }) => {
-  const [backupChatId, setBackupChatId] = useState(crypto.randomUUID());
+  const [backupChatId, setBackupChatId] = useState(nanoid());
   const [input, setInput] = useState("");
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -63,7 +64,7 @@ export const Chat = (props: { chat: DB.Chat | null }) => {
         router.refresh();
       }
     },
-    generateId: () => crypto.randomUUID(),
+    generateId: () => nanoid(),
   });
 
   const ref = useFocusWhenNoChatIdPresent(chatIdFromSearchParams);
@@ -93,7 +94,7 @@ export const Chat = (props: { chat: DB.Chat | null }) => {
 
       if (!chatIdFromSearchParams) {
         router.push(`/?chatId=${chatIdInUse}`);
-        setBackupChatId(crypto.randomUUID());
+        setBackupChatId(nanoid());
       }
     });
   };
