@@ -43,7 +43,7 @@ function NoteCard({ note }: { note: Note }) {
           </div>
 
           <p className="text-sm text-foreground/80 mt-2 line-clamp-2">
-            {note.content.slice(0, 100)}
+            {note.content.slice(0, 100) + '...'}
           </p>
 
           {expanded && (
