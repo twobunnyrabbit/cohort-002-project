@@ -1,6 +1,6 @@
 import { TopBar } from "@/components/top-bar";
 import { SearchInput } from "./search-input";
-import { EmailList } from "./email-list";
+import { NoteList } from "./email-list";
 import { SearchPagination } from "./search-pagination";
 import { PerPageSelector } from "./per-page-selector";
 import fs from "fs/promises";
@@ -9,24 +9,31 @@ import { loadChats, loadMemories } from "@/lib/persistence-layer";
 import { CHAT_LIMIT } from "../page";
 import { SideBar } from "@/components/side-bar";
 
-interface Email {
+// interface Email {
+//   id: string;
+//   threadId: string;
+//   from: string;
+//   to: string | string[];
+//   cc?: string[];
+//   subject: string;
+//   body: string;
+//   timestamp: string;
+//   inReplyTo?: string;
+//   references?: string[];
+//   labels?: string[];
+//   arcId?: string;
+//   phaseId?: number;
+// }
+
+interface Note {
   id: string;
-  threadId: string;
-  from: string;
-  to: string | string[];
-  cc?: string[];
   subject: string;
-  body: string;
-  timestamp: string;
-  inReplyTo?: string;
-  references?: string[];
-  labels?: string[];
-  arcId?: string;
-  phaseId?: number;
+  content: string;
+  lastModified: string;
 }
 
-async function loadEmails(): Promise<Email[]> {
-  const filePath = path.join(process.cwd(), "data", "emails.json");
+async function loadNotes(): Promise<Note[]> {
+  const filePath = path.join(process.cwd(), "data", "obsidian-notes.json");
   const fileContent = await fs.readFile(filePath, "utf-8");
   return JSON.parse(fileContent);
 }
@@ -39,33 +46,30 @@ export default async function SearchPage(props: {
   const page = Number(searchParams.page) || 1;
   const perPage = Number(searchParams.perPage) || 10;
 
-  const allEmails = await loadEmails();
+  const allNotes = await loadNotes();
 
   // Transform emails to match the expected format
-  const transformedEmails = allEmails
-    .map((email) => ({
-      id: email.id,
-      from: email.from,
-      subject: email.subject,
-      preview: email.body.substring(0, 100) + "...",
-      content: email.body,
-      date: email.timestamp,
+  const transformedNotes = allNotes
+    .map((note) => ({
+      id: note.id,
+      subject: note.subject,
+      content: note.content,
+      lastModified: note.lastModified,
     }))
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
 
   // Filter emails based on search query
-  const filteredEmails = query
-    ? transformedEmails.filter(
-        (email) =>
-          email.subject.toLowerCase().includes(query.toLowerCase()) ||
-          email.from.toLowerCase().includes(query.toLowerCase()) ||
-          email.content.toLowerCase().includes(query.toLowerCase())
+  const filteredNotes = query
+    ? transformedNotes.filter(
+        (note) =>
+          note.subject.toLowerCase().includes(query.toLowerCase()) ||
+          note.content.toLowerCase().includes(query.toLowerCase())
       )
-    : transformedEmails;
+    : transformedNotes;
 
-  const totalPages = Math.ceil(filteredEmails.length / perPage);
+  const totalPages = Math.ceil(filteredNotes.length / perPage);
   const startIndex = (page - 1) * perPage;
-  const paginatedEmails = filteredEmails.slice(
+  const paginatedNotes = filteredNotes.slice(
     startIndex,
     startIndex + perPage
   );
@@ -96,17 +100,17 @@ export default async function SearchPage(props: {
                 <p className="text-sm text-muted-foreground">
                   {query ? (
                     <>
-                      Found {filteredEmails.length} result
-                      {filteredEmails.length !== 1 ? "s" : ""} for &ldquo;
+                      Found {filteredNotes.length} result
+                      {filteredNotes.length !== 1 ? "s" : ""} for &ldquo;
                       {query}
                       &rdquo;
                     </>
                   ) : (
-                    <>Found {filteredEmails.length} emails</>
+                    <>Found {filteredNotes.length} emails</>
                   )}
                 </p>
               </div>
-              <EmailList emails={paginatedEmails} />
+              <NoteList notes={paginatedNotes} />
               {totalPages > 1 && (
                 <div className="mt-6">
                   <SearchPagination
