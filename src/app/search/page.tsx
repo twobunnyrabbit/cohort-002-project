@@ -6,7 +6,7 @@ import { SearchPagination } from "./search-pagination";
 import { PerPageSelector } from "./per-page-selector";
 import { loadChats, loadMemories } from "@/lib/persistence-layer";
 import { CHAT_LIMIT } from "../page";
-import { loadNotes, loadOrGenerateEmbeddings, searchWithBM25 } from "../search";
+import { loadNotes, loadOrGenerateEmbeddings, searchWithEmbeddings } from "../search";
 
 export default async function SearchPage(props: {
   searchParams: Promise<{ q?: string; page?: string; perPage?: string }>;
@@ -23,8 +23,8 @@ export default async function SearchPage(props: {
   console.log('Email embeddings loaded:', embeddings.length);
 
 
-  const notesWithScores = await searchWithBM25(
-    query.toLowerCase().split(" "),
+  const notesWithScores = await searchWithEmbeddings(
+    query,
     allNotes
   );
 
@@ -38,7 +38,7 @@ export default async function SearchPage(props: {
       lastModified: note.lastModified,
       score: score,
     }))
-    .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+    // .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
 
   // Filter notes based on search query
   const filteredNotes = query

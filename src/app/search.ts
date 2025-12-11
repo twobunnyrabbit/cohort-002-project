@@ -1,7 +1,7 @@
 import BM25 from "okapibm25";
 import fs from "fs/promises";
 import path from "path";
-import { embedMany } from 'ai';
+import { embed, embedMany, cosineSimilarity } from 'ai';
 import { google } from '@ai-sdk/google';
 
 export interface Note {
@@ -20,6 +20,33 @@ const CACHE_KEY = 'google-text-embedding-004';
 
 const getEmbeddingFilePath = (id: string) =>
   path.join(CACHE_DIR, `${CACHE_KEY}-${id}.json`);
+
+export async function searchWithEmbeddings(query: string, notes: Note[]) {
+  // console.log(`query: ${query}`);
+  // load cached embeddings
+  const notesEmbeddings = await loadOrGenerateEmbeddings(notes);
+  // console.log(notesEmbeddings.length);
+
+  // generate query embedding
+  const { embedding: embeddingQuery} = await embed({
+    model: google.textEmbeddingModel('text-embedding-004'),
+    value: query
+  });
+
+  // console.log(embeddingQuery);
+
+  // calculate cosine similarity scores
+  const results = notesEmbeddings.map(({id, embedding }) => {
+    const note = notes.find((e) => e.id == id)!;
+    const score = cosineSimilarity(embeddingQuery, embedding);
+    // console.log(`score: ${score} id: ${id}`);
+    return { score, note };
+  });
+  console.log('Results: ', results.length);
+
+  // sort by simiarlity descending
+  return results.sort((a, b) => b.score - a.score);
+}
 
 // src/app/search.ts
 // ADDED: Load embeddings from cache or generate new ones
