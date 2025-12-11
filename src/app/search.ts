@@ -1,8 +1,8 @@
 import BM25 from "okapibm25";
 import fs from "fs/promises";
 import path from "path";
-import { embed, embedMany, cosineSimilarity } from 'ai';
-import { google } from '@ai-sdk/google';
+import { embed, embedMany, cosineSimilarity } from "ai";
+import { google } from "@ai-sdk/google";
 
 export interface Note {
   id: string;
@@ -14,9 +14,9 @@ export interface Note {
 
 // src/app/search.ts
 // ADDED: Cache configuration for embeddings
-const CACHE_DIR = path.join(process.cwd(), 'data', 'embeddings');
+const CACHE_DIR = path.join(process.cwd(), "data", "embeddings");
 
-const CACHE_KEY = 'google-text-embedding-004';
+const CACHE_KEY = "google-text-embedding-004";
 
 const getEmbeddingFilePath = (id: string) =>
   path.join(CACHE_DIR, `${CACHE_KEY}-${id}.json`);
@@ -27,7 +27,7 @@ const RRF_K = 60;
 
 // ADDED: Combines multiple ranking lists using position-based scoring
 export function reciprocalRankFusion(
-  rankings: { note: Note; score: number }[][],
+  rankings: { note: Note; score: number }[][]
 ): { note: Note; score: number }[] {
   const rrfScores = new Map<string, number>();
   const noteMap = new Map<string, Note>();
@@ -56,22 +56,13 @@ export function reciprocalRankFusion(
 
 // src/app/search.ts
 // ADDED: Combines BM25 and embeddings search using RRF
-export const searchWithRRF = async (
-  query: string,
-  notes: Note[],
-) => {
+export const searchWithRRF = async (query: string, notes: Note[]) => {
   const bm25Ranking = await searchWithBM25(
-    query.toLowerCase().split(' '),
-    notes,
+    query.toLowerCase().split(" "),
+    notes
   );
-  const embeddingsRanking = await searchWithEmbeddings(
-    query,
-    notes,
-  );
-  const rrfRanking = reciprocalRankFusion([
-    bm25Ranking,
-    embeddingsRanking,
-  ]);
+  const embeddingsRanking = await searchWithEmbeddings(query, notes);
+  const rrfRanking = reciprocalRankFusion([bm25Ranking, embeddingsRanking]);
   return rrfRanking;
 };
 
@@ -82,21 +73,21 @@ export async function searchWithEmbeddings(query: string, notes: Note[]) {
   // console.log(notesEmbeddings.length);
 
   // generate query embedding
-  const { embedding: embeddingQuery} = await embed({
-    model: google.textEmbeddingModel('text-embedding-004'),
-    value: query
+  const { embedding: embeddingQuery } = await embed({
+    model: google.textEmbeddingModel("text-embedding-004"),
+    value: query,
   });
 
   // console.log(embeddingQuery);
 
   // calculate cosine similarity scores
-  const results = notesEmbeddings.map(({id, embedding }) => {
+  const results = notesEmbeddings.map(({ id, embedding }) => {
     const note = notes.find((e) => e.id == id)!;
     const score = cosineSimilarity(embeddingQuery, embedding);
     // console.log(`score: ${score} id: ${id}`);
     return { score, note };
   });
-  console.log('Results: ', results.length);
+  // console.log('Results: ', results.length);
 
   // sort by simiarlity descending
   return results.sort((a, b) => b.score - a.score);
@@ -105,7 +96,7 @@ export async function searchWithEmbeddings(query: string, notes: Note[]) {
 // src/app/search.ts
 // ADDED: Load embeddings from cache or generate new ones
 export async function loadOrGenerateEmbeddings(
-  notes: Note[],
+  notes: Note[]
 ): Promise<{ id: string; embedding: number[] }[]> {
   // Ensure cache directory exists
   await fs.mkdir(CACHE_DIR, { recursive: true });
@@ -116,10 +107,7 @@ export async function loadOrGenerateEmbeddings(
   // Check cache for each note
   for (const note of notes) {
     try {
-      const cached = await fs.readFile(
-        getEmbeddingFilePath(note.id),
-        'utf-8',
-      );
+      const cached = await fs.readFile(getEmbeddingFilePath(note.id), "utf-8");
       const data = JSON.parse(cached);
       results.push({ id: note.id, embedding: data.embedding });
     } catch {
@@ -130,21 +118,19 @@ export async function loadOrGenerateEmbeddings(
 
   // Generate embeddings for uncached notes in batches of 99
   if (uncachedNotes.length > 0) {
-    console.log(
-      `Generating embeddings for ${uncachedNotes.length} notes`,
-    );
+    console.log(`Generating embeddings for ${uncachedNotes.length} notes`);
 
     const BATCH_SIZE = 99;
     for (let i = 0; i < uncachedNotes.length; i += BATCH_SIZE) {
       const batch = uncachedNotes.slice(i, i + BATCH_SIZE);
       console.log(
         `Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
-          uncachedNotes.length / BATCH_SIZE,
-        )}`,
+          uncachedNotes.length / BATCH_SIZE
+        )}`
       );
 
       const { embeddings } = await embedMany({
-        model: google.textEmbeddingModel('text-embedding-004'),
+        model: google.textEmbeddingModel("text-embedding-004"),
         values: batch.map((e) => `${e.subject} ${e.content}`),
       });
 
@@ -155,7 +141,7 @@ export async function loadOrGenerateEmbeddings(
 
         await fs.writeFile(
           getEmbeddingFilePath(note.id),
-          JSON.stringify({ id: note.id, embedding }),
+          JSON.stringify({ id: note.id, embedding })
         );
 
         results.push({ id: note.id, embedding });

@@ -11,11 +11,13 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
   safeValidateUIMessages,
+  stepCountIs,
   streamText,
   UIMessage,
 } from "ai";
 import { nanoid } from "nanoid";
 import { generateTitleForChat } from "./generate-title";
+import { searchTool } from "./search-tool";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -94,6 +96,28 @@ export async function POST(req: Request) {
       const result = streamText({
         model: google("gemini-2.5-flash-lite"),
         messages: convertToModelMessages(messages),
+        // CHANGED: Restructured system prompt with clear sections
+        system: `
+<task-context>
+You are an n otes assistant that helps users find and understand information from their notess.
+</task-context>
+
+<rules>
+- You MUST use the search tool for ANY question about the notes, concepts, topics, or specific information
+- NEVER answer from your training data - always search the actual notes first
+- If the first search doesn't find enough information, try different keywords or search queries
+- Use both semantic (searchQuery) and keyword (keywords) search parameters together for best results
+- Only after searching should you formulate your answer based on the search results
+</rules>
+
+<the-ask>
+Here is the user's question. Search their notes first, then provide your answer based on what you find.
+</the-ask>
+  `,
+        tools: {
+          search: searchTool,
+        },
+        stopWhen: [stepCountIs(10)],
       });
 
       writer.merge(
