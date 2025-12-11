@@ -6,7 +6,7 @@ import { SearchPagination } from "./search-pagination";
 import { PerPageSelector } from "./per-page-selector";
 import { loadChats, loadMemories } from "@/lib/persistence-layer";
 import { CHAT_LIMIT } from "../page";
-import { loadNotes, loadOrGenerateEmbeddings, searchWithEmbeddings } from "../search";
+import { loadNotes, loadOrGenerateEmbeddings, searchWithEmbeddings, searchWithRRF } from "../search";
 
 export default async function SearchPage(props: {
   searchParams: Promise<{ q?: string; page?: string; perPage?: string }>;
@@ -23,7 +23,7 @@ export default async function SearchPage(props: {
   console.log('Email embeddings loaded:', embeddings.length);
 
 
-  const notesWithScores = await searchWithEmbeddings(
+  const notesWithScores = await searchWithRRF(
     query,
     allNotes
   );

@@ -21,6 +21,60 @@ const CACHE_KEY = 'google-text-embedding-004';
 const getEmbeddingFilePath = (id: string) =>
   path.join(CACHE_DIR, `${CACHE_KEY}-${id}.json`);
 
+// src/app/search.ts
+// ADDED: RRF parameter for rank fusion
+const RRF_K = 60;
+
+// ADDED: Combines multiple ranking lists using position-based scoring
+export function reciprocalRankFusion(
+  rankings: { note: Note; score: number }[][],
+): { note: Note; score: number }[] {
+  const rrfScores = new Map<string, number>();
+  const noteMap = new Map<string, Note>();
+
+  // Process each ranking list (BM25 and embeddings)
+  rankings.forEach((ranking) => {
+    ranking.forEach((item, rank) => {
+      const currentScore = rrfScores.get(item.note.id) || 0;
+
+      // Position-based scoring: 1/(k+rank)
+      const contribution = 1 / (RRF_K + rank);
+      rrfScores.set(item.note.id, currentScore + contribution);
+
+      noteMap.set(item.note.id, item.note);
+    });
+  });
+
+  // Sort by combined RRF score descending
+  return Array.from(rrfScores.entries())
+    .sort(([, scoreA], [, scoreB]) => scoreB - scoreA)
+    .map(([noteId, score]) => ({
+      score,
+      note: noteMap.get(noteId)!,
+    }));
+}
+
+// src/app/search.ts
+// ADDED: Combines BM25 and embeddings search using RRF
+export const searchWithRRF = async (
+  query: string,
+  notes: Note[],
+) => {
+  const bm25Ranking = await searchWithBM25(
+    query.toLowerCase().split(' '),
+    notes,
+  );
+  const embeddingsRanking = await searchWithEmbeddings(
+    query,
+    notes,
+  );
+  const rrfRanking = reciprocalRankFusion([
+    bm25Ranking,
+    embeddingsRanking,
+  ]);
+  return rrfRanking;
+};
+
 export async function searchWithEmbeddings(query: string, notes: Note[]) {
   // console.log(`query: ${query}`);
   // load cached embeddings
