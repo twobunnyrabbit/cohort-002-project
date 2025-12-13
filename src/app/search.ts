@@ -9,7 +9,8 @@ import {
   getCachedEmbedding,
   writeEmbeddingToCache,
 } from "./api/embeddings";
-import { id } from "zod/v4/locales";
+
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 
 export interface Note {
   id: string;
@@ -18,6 +19,64 @@ export interface Note {
   content: string;
   lastModified: string;
 }
+
+export type NoteChunk = {
+  id: string;
+  subject: string;
+  chunk: string;
+  index: number;
+  totalChunks: number;
+  lastModified: string;
+};
+
+// src/app/search.ts
+const textSplitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 100,
+  separators: ["\n\n", "\n", " ", ""],
+});
+
+/**
+ * Splits notes into smaller chunks for more efficient processing and searching.
+ *
+ * This function takes an array of notes and uses a text splitter to break down
+ * each note's content into smaller, overlapping chunks. Each chunk retains the
+ * original note's metadata (id, subject, lastModified) along with chunk-specific
+ * information (index within the note, total chunks count).
+ *
+ * Chunking is useful for:
+ * - Improving search relevance by matching queries to specific sections
+ * - Handling large documents that exceed context limits
+ * - Providing more granular search results
+ *
+ * @param notes - Array of notes to be chunked
+ * @returns Array of NoteChunk objects containing chunked content with metadata
+ */
+export const chunkNotes = async (notes: Note[]) => {
+  // Initialize array to store all chunks from all notes
+  const notesWithChunks: NoteChunk[] = [];
+
+  // Process each note individually
+  for (const note of notes) {
+    // Split the note content into chunks using the configured text splitter
+    // The splitter uses RecursiveCharacterTextSplitter with chunkSize=1000 and chunkOverlap=100
+    const chunks = await textSplitter.splitText(note.content);
+
+    // Convert each chunk into a NoteChunk object with metadata
+    chunks.forEach((chunk, chunkIndex) => {
+      notesWithChunks.push({
+        id: note.id, // Original note ID
+        index: chunkIndex, // Position of this chunk within the note
+        subject: note.subject, // Original note subject
+        chunk, // The actual chunk content
+        lastModified: note.lastModified, // Original note modification date
+        totalChunks: chunks.length, // Total number of chunks for this note
+      });
+    });
+  }
+
+  return notesWithChunks;
+};
 
 export const noteToText = (note: Note) => {
   return `${note.subject} ${note.content}`;
