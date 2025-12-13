@@ -4,6 +4,13 @@ import path from "path";
 import { embed, embedMany, cosineSimilarity } from "ai";
 import { google } from "@ai-sdk/google";
 
+import {
+  ensureEmbeddingsCacheDirectory,
+  getCachedEmbedding,
+  writeEmbeddingToCache,
+} from "./api/embeddings";
+import { id } from "zod/v4/locales";
+
 export interface Note {
   id: string;
   subject: string;
@@ -12,17 +19,10 @@ export interface Note {
   lastModified: string;
 }
 
-// src/app/search.ts
-// ADDED: Cache configuration for embeddings
-const CACHE_DIR = path.join(process.cwd(), "data", "embeddings");
+export const noteToText = (note: Note) => {
+  return `${note.subject} ${note.content}`;
+};
 
-const CACHE_KEY = "google-text-embedding-004";
-
-const getEmbeddingFilePath = (id: string) =>
-  path.join(CACHE_DIR, `${CACHE_KEY}-${id}.json`);
-
-// src/app/search.ts
-// ADDED: RRF parameter for rank fusion
 const RRF_K = 60;
 
 // ADDED: Combines multiple ranking lists using position-based scoring
@@ -99,19 +99,18 @@ export async function loadOrGenerateEmbeddings(
   notes: Note[]
 ): Promise<{ id: string; embedding: number[] }[]> {
   // Ensure cache directory exists
-  await fs.mkdir(CACHE_DIR, { recursive: true });
+  // await fs.mkdir(CACHE_DIR, { recursive: true });
+  await ensureEmbeddingsCacheDirectory();
 
   const results: { id: string; embedding: number[] }[] = [];
   const uncachedNotes: Note[] = [];
 
   // Check cache for each note
   for (const note of notes) {
-    try {
-      const cached = await fs.readFile(getEmbeddingFilePath(note.id), "utf-8");
-      const data = JSON.parse(cached);
-      results.push({ id: note.id, embedding: data.embedding });
-    } catch {
-      // Cache miss - need to generate
+    const cachedEmbedding = await getCachedEmbedding(noteToText(note));
+    if (cachedEmbedding) {
+      results.push({ id: note.id, embedding: cachedEmbedding });
+    } else {
       uncachedNotes.push(note);
     }
   }
@@ -131,7 +130,7 @@ export async function loadOrGenerateEmbeddings(
 
       const { embeddings } = await embedMany({
         model: google.textEmbeddingModel("text-embedding-004"),
-        values: batch.map((e) => `${e.subject} ${e.content}`),
+        values: batch.map((e) => noteToText(e)),
       });
 
       // Write batch to cache
@@ -139,10 +138,7 @@ export async function loadOrGenerateEmbeddings(
         const note = batch[j];
         const embedding = embeddings[j];
 
-        await fs.writeFile(
-          getEmbeddingFilePath(note.id),
-          JSON.stringify({ id: note.id, embedding })
-        );
+        await writeEmbeddingToCache(noteToText(note), embedding);
 
         results.push({ id: note.id, embedding });
       }
@@ -154,7 +150,7 @@ export async function loadOrGenerateEmbeddings(
 
 export async function searchWithBM25(keywords: string[], notes: Note[]) {
   // Combine subject + body for richer text corpus
-  const corpus = notes.map((note) => `${note.subject} ${note.content}`);
+  const corpus = notes.map((note) => noteToText(note));
 
   // BM25 returns score array matching corpus order
   const scores: number[] = (BM25 as any)(corpus, keywords);
