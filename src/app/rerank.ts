@@ -1,6 +1,6 @@
 // src/app/rerank.ts
 import { google } from "@ai-sdk/google";
-import { generateObject, zodSchema } from "ai";
+import { generateObject, ModelMessage } from "ai";
 import { z } from "zod";
 
 type ResultWithNote = {
@@ -14,7 +14,8 @@ type ResultWithNote = {
 
 export const rerankNotes = async (
   results: ResultWithNote[],
-  query: string
+  query: string,
+  conversationHistory: ModelMessage[]
 ): Promise<ResultWithNote[]> => {
   const resultsWithId = results.map((result, index) => ({
     ...result,
@@ -41,26 +42,33 @@ Return the IDs as a simple array of numbers.`,
         .array(z.number())
         .describe("Array of IDs for the most relevant chunks"),
     }),
-    prompt: `
-      Search query:
-      ${query}
-
-      Available chunks:
-      ${resultsWithId
-        .map((resultWithId) =>
-          [
-            `## ID: ${resultWithId.id}`,
-            `Subject: ${resultWithId.note.subject}`,
-            `<content>`,
-            resultWithId.note.chunk,
-            `</content>`,
-          ].join("\n\n")
-        )
-        .join("\n\n")}
-
-      Return only the IDs of the most relevant chunks for the user's search query.
-    `,
+    messages: [
+      ...conversationHistory,
+      {
+        role: "user",
+        content: `
+        Search query:
+        ${query}
+  
+        Available chunks:
+        ${resultsWithId
+          .map((resultWithId) =>
+            [
+              `## ID: ${resultWithId.id}`,
+              `Subject: ${resultWithId.note.subject}`,
+              `<content>`,
+              resultWithId.note.chunk,
+              `</content>`,
+            ].join("\n\n")
+          )
+          .join("\n\n")}
+  
+        Return only the IDs of the most relevant chunks for the user's search query.
+      `,
+      },
+    ],
   });
+
   console.log("Reranked results:", rerankedResults.object.resultIds);
 
   return rerankedResults.object.resultIds

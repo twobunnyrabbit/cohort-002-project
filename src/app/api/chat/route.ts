@@ -115,7 +115,7 @@ Here is the user's question. Search their notes first, then provide your answer 
 </the-ask>
   `,
         tools: {
-          search: searchTool,
+          search: searchTool(messages),
         },
         stopWhen: [stepCountIs(10)],
       });
