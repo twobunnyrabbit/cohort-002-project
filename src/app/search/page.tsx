@@ -15,42 +15,57 @@ export default async function SearchPage(props: {
   const query = searchParams.q || "";
   const page = Number(searchParams.page) || 1;
   const perPage = Number(searchParams.perPage) || 10;
-
+  
   const allNotes = await loadNotes();
+  
+  
 
-  const embeddings = await loadOrGenerateEmbeddings(allNotes);
+  // const embeddings = await loadOrGenerateEmbeddings(allNotes);
 
-  console.log('Email embeddings loaded:', embeddings.length);
+  // console.log('Notes embeddings loaded:', embeddings.length);
 
-
+  
   const notesWithScores = await searchWithRRF(
     query,
     allNotes
   );
+  
 
   // Transform notes to match the expected format
   const transformedNotes = notesWithScores
     .map(({ note, score }) => ({
       id: note.id,
       subject: note.subject,
-      preview: note.content.substring(0, 100) + "...",
-      content: note.content,
+      preview: note.chunk.substring(0, 100) + "...",
+      content: note.chunk,
       lastModified: note.lastModified,
+      chunkIndex: note.index,
+      totalChunks: note.totalChunks,
       score: score,
     }))
+    .sort((a, b) => b.score - a.score);
+    
     // .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
 
   // Filter notes based on search query
   const filteredNotes = query
     ? transformedNotes.filter((note) => note.score > 0)
     : transformedNotes;
+  
+  
 
   const totalPages = Math.ceil(filteredNotes.length / perPage);
+  
   const startIndex = (page - 1) * perPage;
+  
+  
   const paginatedNotes = filteredNotes.slice(
     startIndex,
     startIndex + perPage
   );
+  console.dir(paginatedNotes);
+  
+
   const allChats = await loadChats();
   const chats = allChats.slice(0, CHAT_LIMIT);
   const memories = await loadMemories();

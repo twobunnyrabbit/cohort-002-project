@@ -4,7 +4,17 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MailIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { useState } from "react";
-import { type Note } from '../search';
+// import { type Note } from '../search';
+
+type Note = {
+  id: string;
+  subject: string;
+  preview: string;
+  content: string;
+  lastModified: string;
+  chunkIndex: number;
+  totalChunks: number;
+};
 
 function NoteCard({ note }: { note: Note }) {
   const [expanded, setExpanded] = useState(false);
@@ -29,7 +39,10 @@ function NoteCard({ note }: { note: Note }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-4 mb-1">
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-base mb-0.5">{note.subject}</h3>
+              <h3 className="font-semibold text-base mb-0.5">
+                {note.subject} (Chunk {note.chunkIndex + 1} of{" "}
+                {note.totalChunks})
+              </h3>
             </div>
             <span className="text-xs text-muted-foreground whitespace-nowrap">
               {formatDate(note.lastModified)}
@@ -37,7 +50,7 @@ function NoteCard({ note }: { note: Note }) {
           </div>
 
           <p className="text-sm text-foreground/80 mt-2 line-clamp-2">
-            {note.content.slice(0, 100) + '...'}
+            {note.content.slice(0, 100) + "..."}
           </p>
 
           {expanded && (
@@ -80,9 +93,7 @@ export function NoteList({ notes }: { notes: Note[] }) {
       <div className="text-center py-12">
         <MailIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
         <h3 className="text-lg font-semibold mb-2">No notes found</h3>
-        <p className="text-muted-foreground">
-          Try adjusting your search query
-        </p>
+        <p className="text-muted-foreground">Try adjusting your search query</p>
       </div>
     );
   }
@@ -90,7 +101,7 @@ export function NoteList({ notes }: { notes: Note[] }) {
   return (
     <div className="space-y-3">
       {notes.map((note) => (
-        <NoteCard key={note.id} note={note} />
+        <NoteCard key={note.id + note.chunkIndex} note={note} />
       ))}
     </div>
   );

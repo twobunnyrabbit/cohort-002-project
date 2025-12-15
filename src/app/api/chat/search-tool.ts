@@ -1,5 +1,6 @@
 // src/app/api/chat/search-tool.ts
 import {
+  chunkNotes,
   loadNotes,
   reciprocalRankFusion,
   searchWithBM25,
@@ -29,11 +30,12 @@ export const searchTool = tool({
     console.log("Search query:", searchQuery);
 
     const notes = await loadNotes();
+    const noteChunks = await chunkNotes(notes);
 
     // Perform BM25 and embedding searches
-    const bm25Results = keywords ? await searchWithBM25(keywords, notes) : [];
+    const bm25Results = keywords ? await searchWithBM25(keywords, noteChunks) : [];
     const embeddingResults = searchQuery
-      ? await searchWithEmbeddings(searchQuery, notes)
+      ? await searchWithEmbeddings(searchQuery, noteChunks)
       : [];
 
     // Combine results using reciprocal rank fusion
@@ -49,7 +51,7 @@ export const searchTool = tool({
       .map((r) => ({
         id: r.note.id,
         subject: r.note.subject,
-        content: r.note.content,
+        content: r.note.chunk,
         lastModified: r.note.lastModified,
         score: r.score,
       }));

@@ -11,6 +11,7 @@ import {
 } from "./api/embeddings";
 
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { Splitter } from 'llm-text-splitter';
 
 export interface Note {
   id: string;
@@ -29,11 +30,22 @@ export type NoteChunk = {
   lastModified: string;
 };
 
+function countTokens(text: string): number {
+  return text.split(" ").length;
+}
+
 // src/app/search.ts
-const textSplitter = new RecursiveCharacterTextSplitter({
-  chunkSize: 1000,
-  chunkOverlap: 100,
-  separators: ["\n\n", "\n", " ", ""],
+// const textSplitter = new RecursiveCharacterTextSplitter({
+//   chunkSize: 1000,
+//   chunkOverlap: 100,
+//   separators: ["\n\n", "\n", " ", ""],
+//   // lengthFunction: countTokens,
+// });
+
+const textSplitter = new Splitter({
+  maxLength: 1000,
+  overlap: 100,
+  splitter: 'markdown'
 });
 
 /**
@@ -53,6 +65,7 @@ const textSplitter = new RecursiveCharacterTextSplitter({
  * @returns Array of NoteChunk objects containing chunked content with metadata
  */
 export const chunkNotes = async (notes: Note[]) => {
+  
   // Initialize array to store all chunks from all notes
   const notesWithChunks: NoteChunk[] = [];
 
@@ -60,7 +73,9 @@ export const chunkNotes = async (notes: Note[]) => {
   for (const note of notes) {
     // Split the note content into chunks using the configured text splitter
     // The splitter uses RecursiveCharacterTextSplitter with chunkSize=1000 and chunkOverlap=100
-    const chunks = await textSplitter.splitText(note.content);
+    // const chunks = await textSplitter.splitText(note.content);
+    const chunks = await textSplitter.split(note.content);
+    
 
     // Convert each chunk into a NoteChunk object with metadata
     chunks.forEach((chunk, chunkIndex) => {
@@ -75,61 +90,72 @@ export const chunkNotes = async (notes: Note[]) => {
     });
   }
 
+  
   return notesWithChunks;
 };
 
-export const noteToText = (note: Note) => {
-  return `${note.subject} ${note.content}`;
+export const noteChunkToText = (note: NoteChunk) => {
+  return `${note.subject} ${note.chunk}`;
 };
 
 const RRF_K = 60;
 
 // ADDED: Combines multiple ranking lists using position-based scoring
 export function reciprocalRankFusion(
-  rankings: { note: Note; score: number }[][]
-): { note: Note; score: number }[] {
+  rankings: { note: NoteChunk; score: number }[][]
+): { note: NoteChunk; score: number }[] {
   const rrfScores = new Map<string, number>();
-  const noteMap = new Map<string, Note>();
+  const noteMap = new Map<string, NoteChunk>();
 
   // Process each ranking list (BM25 and embeddings)
   rankings.forEach((ranking) => {
     ranking.forEach((item, rank) => {
+      const noteChunkId = `${item.note.id}-${item.note.index}`;
       const currentScore = rrfScores.get(item.note.id) || 0;
 
       // Position-based scoring: 1/(k+rank)
       const contribution = 1 / (RRF_K + rank);
-      rrfScores.set(item.note.id, currentScore + contribution);
+      rrfScores.set(noteChunkId, currentScore + contribution);
 
-      noteMap.set(item.note.id, item.note);
+      noteMap.set(noteChunkId, item.note);
     });
   });
 
   // Sort by combined RRF score descending
   return Array.from(rrfScores.entries())
     .sort(([, scoreA], [, scoreB]) => scoreB - scoreA)
-    .map(([noteId, score]) => ({
+    .map(([noteChunkId, score]) => ({
       score,
-      note: noteMap.get(noteId)!,
+      note: noteMap.get(noteChunkId)!,
     }));
 }
 
 // src/app/search.ts
 // ADDED: Combines BM25 and embeddings search using RRF
 export const searchWithRRF = async (query: string, notes: Note[]) => {
+  
+  
+  const noteChunks = await chunkNotes(notes);
+
+  
   const bm25Ranking = await searchWithBM25(
     query.toLowerCase().split(" "),
-    notes
+    noteChunks
   );
-  const embeddingsRanking = await searchWithEmbeddings(query, notes);
+  
+  const embeddingsRanking = await searchWithEmbeddings(query, noteChunks);
   const rrfRanking = reciprocalRankFusion([bm25Ranking, embeddingsRanking]);
+
+  
   return rrfRanking;
 };
 
-export async function searchWithEmbeddings(query: string, notes: Note[]) {
-  // console.log(`query: ${query}`);
+export async function searchWithEmbeddings(
+  query: string,
+  noteChunks: NoteChunk[]
+) {
   // load cached embeddings
-  const notesEmbeddings = await loadOrGenerateEmbeddings(notes);
-  // console.log(notesEmbeddings.length);
+  const notesEmbeddings = await loadOrGenerateEmbeddings(noteChunks);
 
   // generate query embedding
   const { embedding: embeddingQuery } = await embed({
@@ -137,16 +163,12 @@ export async function searchWithEmbeddings(query: string, notes: Note[]) {
     value: query,
   });
 
-  // console.log(embeddingQuery);
-
   // calculate cosine similarity scores
   const results = notesEmbeddings.map(({ id, embedding }) => {
-    const note = notes.find((e) => e.id == id)!;
+    const note = noteChunks.find((e) => e.id == id)!;
     const score = cosineSimilarity(embeddingQuery, embedding);
-    // console.log(`score: ${score} id: ${id}`);
     return { score, note };
   });
-  // console.log('Results: ', results.length);
 
   // sort by simiarlity descending
   return results.sort((a, b) => b.score - a.score);
@@ -155,41 +177,43 @@ export async function searchWithEmbeddings(query: string, notes: Note[]) {
 // src/app/search.ts
 // ADDED: Load embeddings from cache or generate new ones
 export async function loadOrGenerateEmbeddings(
-  notes: Note[]
+  noteChunks: NoteChunk[]
 ): Promise<{ id: string; embedding: number[] }[]> {
   // Ensure cache directory exists
   // await fs.mkdir(CACHE_DIR, { recursive: true });
   await ensureEmbeddingsCacheDirectory();
 
   const results: { id: string; embedding: number[] }[] = [];
-  const uncachedNotes: Note[] = [];
+  const uncachedNoteChunks: NoteChunk[] = [];
 
   // Check cache for each note
-  for (const note of notes) {
-    const cachedEmbedding = await getCachedEmbedding(noteToText(note));
+  for (const noteChunk of noteChunks) {
+    const cachedEmbedding = await getCachedEmbedding(
+      noteChunkToText(noteChunk)
+    );
     if (cachedEmbedding) {
-      results.push({ id: note.id, embedding: cachedEmbedding });
+      results.push({ id: noteChunk.id, embedding: cachedEmbedding });
     } else {
-      uncachedNotes.push(note);
+      uncachedNoteChunks.push(noteChunk);
     }
   }
 
   // Generate embeddings for uncached notes in batches of 99
-  if (uncachedNotes.length > 0) {
-    console.log(`Generating embeddings for ${uncachedNotes.length} notes`);
+  if (uncachedNoteChunks.length > 0) {
+    
 
-    const BATCH_SIZE = 99;
-    for (let i = 0; i < uncachedNotes.length; i += BATCH_SIZE) {
-      const batch = uncachedNotes.slice(i, i + BATCH_SIZE);
+    const BATCH_SIZE = 99; //99
+    for (let i = 0; i < uncachedNoteChunks.length; i += BATCH_SIZE) {
+      const batch = uncachedNoteChunks.slice(i, i + BATCH_SIZE);
       console.log(
         `Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
-          uncachedNotes.length / BATCH_SIZE
+          uncachedNoteChunks.length / BATCH_SIZE
         )}`
       );
 
       const { embeddings } = await embedMany({
         model: google.textEmbeddingModel("text-embedding-004"),
-        values: batch.map((e) => noteToText(e)),
+        values: batch.map((e) => noteChunkToText(e)),
       });
 
       // Write batch to cache
@@ -197,7 +221,7 @@ export async function loadOrGenerateEmbeddings(
         const note = batch[j];
         const embedding = embeddings[j];
 
-        await writeEmbeddingToCache(noteToText(note), embedding);
+        await writeEmbeddingToCache(noteChunkToText(note), embedding);
 
         results.push({ id: note.id, embedding });
       }
@@ -207,16 +231,19 @@ export async function loadOrGenerateEmbeddings(
   return results;
 }
 
-export async function searchWithBM25(keywords: string[], notes: Note[]) {
+export async function searchWithBM25(
+  keywords: string[],
+  noteChunks: NoteChunk[]
+) {
   // Combine subject + body for richer text corpus
-  const corpus = notes.map((note) => noteToText(note));
+  const corpus = noteChunks.map((noteChunk) => noteChunkToText(noteChunk));
 
   // BM25 returns score array matching corpus order
   const scores: number[] = (BM25 as any)(corpus, keywords);
 
   // Map scores to notes, sort descending
   return scores
-    .map((score, idx) => ({ score, note: notes[idx] }))
+    .map((score, idx) => ({ score, note: noteChunks[idx] }))
     .sort((a, b) => b.score - a.score);
 }
 

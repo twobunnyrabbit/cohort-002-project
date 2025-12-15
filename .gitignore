@@ -44,3 +44,5 @@ db.local.json
 data
 !data/emails.json
 data/obsidian-notes.json
+
+Note-to-me.md
