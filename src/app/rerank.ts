@@ -2,13 +2,10 @@
 import { google } from "@ai-sdk/google";
 import { generateObject, ModelMessage } from "ai";
 import { z } from "zod";
+import { NoteChunk } from "./search";
 
 type ResultWithNote = {
-  note: {
-    id: string;
-    subject: string;
-    chunk: string;
-  };
+  note: NoteChunk;
   score: number;
 };
 

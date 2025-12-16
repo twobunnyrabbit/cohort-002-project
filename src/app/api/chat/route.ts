@@ -10,6 +10,7 @@ import {
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
+  InferUITools,
   safeValidateUIMessages,
   stepCountIs,
   streamText,
@@ -26,8 +27,13 @@ export type MyMessage = UIMessage<
   never,
   {
     "frontend-action": "refresh-sidebar";
-  }
+  },
+  InferUITools<ReturnType<typeof getTools>>
 >;
+
+const getTools = (messages: UIMessage[]) => ({
+  search: searchTool(messages),
+});
 
 export async function POST(req: Request) {
   const body: {
@@ -114,9 +120,7 @@ You are an n otes assistant that helps users find and understand information fro
 Here is the user's question. Search their notes first, then provide your answer based on what you find.
 </the-ask>
   `,
-        tools: {
-          search: searchTool(messages),
-        },
+        tools: getTools(messages),
         stopWhen: [stepCountIs(10)],
       });
 

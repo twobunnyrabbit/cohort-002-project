@@ -45,6 +45,9 @@ import { Fragment, startTransition, useState } from "react";
 import type { MyMessage } from "./api/chat/route";
 import { useFocusWhenNoChatIdPresent } from "./use-focus-chat-when-new-chat-button-pressed";
 
+import { Tool, ToolContent, ToolHeader } from "@/components/ai-elements/tool";
+import { Button } from "@/components/ui/button";
+
 export const Chat = (props: { chat: DB.Chat | null }) => {
   const [backupChatId, setBackupChatId] = useState(nanoid());
   const [input, setInput] = useState("");
@@ -130,6 +133,70 @@ export const Chat = (props: { chat: DB.Chat | null }) => {
                 )}
               {message.parts.map((part, i) => {
                 switch (part.type) {
+                  // src/app/chat.tsx
+                  // ADDED: Display tool-search case
+                  case "tool-search":
+                    return (
+                      <Tool
+                        key={`${message.id}-${i}`}
+                        className="w-full"
+                        defaultOpen={false}
+                      >
+                        <ToolHeader
+                          title="Search"
+                          type={part.type}
+                          state={part.state}
+                        />
+                        <ToolContent>
+                          <div className="space-y-4 p-4">
+                            {/* Input parameters */}
+                            {part.input && (
+                              <div className="space-y-2">
+                                <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                                  Parameters
+                                </h4>
+                                <div className="text-sm">
+                                  {part.input.keywords && (
+                                    <div>
+                                      <span className="font-medium">
+                                        Keywords:
+                                      </span>{" "}
+                                      {part.input.keywords.join(", ")}
+                                    </div>
+                                  )}
+                                  {part.input.searchQuery && (
+                                    <div>
+                                      <span className="font-medium">
+                                        Search Query:
+                                      </span>{" "}
+                                      {part.input.searchQuery}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Email results */}
+                            {part.state === "output-available" &&
+                              part.output && (
+                                <NoteResultsGrid notes={part.output.notes} />
+                              )}
+
+                            {/* Error state */}
+                            {part.state === "output-error" && (
+                              <div className="space-y-2">
+                                <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                                  Error
+                                </h4>
+                                <div className="rounded-md bg-destructive/10 p-3 text-destructive text-sm">
+                                  {part.errorText}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </ToolContent>
+                      </Tool>
+                    );
                   case "text":
                     return (
                       <Fragment key={`${message.id}-${i}`}>
@@ -215,6 +282,51 @@ export const Chat = (props: { chat: DB.Chat | null }) => {
           </PromptInputToolbar>
         </PromptInput>
       </div>
+    </div>
+  );
+};
+
+// src/app/chat.tsx
+// ADDED: NoteResultsGrid component
+const NoteResultsGrid = ({
+  notes,
+}: {
+  notes: Array<{
+    id: string;
+    subject: string;
+    content: string;
+    score: number;
+  }>;
+}) => {
+  const [showAll, setShowAll] = useState(false);
+  const displayedNotes = showAll ? notes : notes.slice(0, 8);
+  const hasMore = notes.length > 8;
+
+  return (
+    <div className="space-y-2">
+      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+        Results ({notes.length} {notes.length === 1 ? "notel" : "notes"})
+      </h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {displayedNotes.map((note, idx) => (
+          <div
+            key={idx}
+            className="rounded-md border bg-muted/30 p-3 text-sm space-y-1"
+          >
+            <div className="font-medium">{note.subject}</div>
+          </div>
+        ))}
+      </div>
+      {hasMore && !showAll && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowAll(true)}
+          className="w-full"
+        >
+          Show more ({notes.length - 8} more)
+        </Button>
+      )}
     </div>
   );
 };
