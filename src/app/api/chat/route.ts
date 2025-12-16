@@ -19,6 +19,7 @@ import {
 import { nanoid } from "nanoid";
 import { generateTitleForChat } from "./generate-title";
 import { searchTool } from "./search-tool";
+import { filterNotesTool } from "./filter-tool";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -33,6 +34,7 @@ export type MyMessage = UIMessage<
 
 const getTools = (messages: UIMessage[]) => ({
   search: searchTool(messages),
+  filterNotes: filterNotesTool,
 });
 
 export async function POST(req: Request) {
@@ -105,19 +107,33 @@ export async function POST(req: Request) {
         // CHANGED: Restructured system prompt with clear sections
         system: `
 <task-context>
-You are an n otes assistant that helps users find and understand information from their notess.
+You are an notes assistant that helps users find and understand information from their notess.
 </task-context>
 
 <rules>
-- You MUST use the search tool for ANY question about the notes, concepts, topics, or specific information
-- NEVER answer from your training data - always search the actual notes first
-- If the first search doesn't find enough information, try different keywords or search queries
-- Use both semantic (searchQuery) and keyword (keywords) search parameters together for best results
-- Only after searching should you formulate your answer based on the search results
+- You have TWO tools available: 'search' and 'filterNotes'
+- Choose the appropriate tool based on the query type:
+
+  USE 'filterNotes' when the user wants to:
+  - Find notes on subject (e.g., "notes about dementia"")
+  - Filter by date ranges (e.g., "notes before January 2024", "notes after last week")
+  - Find notes containing exact text (e.g., "notes containing 'gerunds'")
+  - Any combination of precise filtering criteria
+
+  USE 'search' when the user wants to:
+  - Find information semantically (e.g., "notes about the project deadline")
+  - Search by concepts or topics (e.g., "discussions about sleep apnea")
+  - Coding examples (e.g., "find code snippets relating to typescript types?")
+  - Any query requiring understanding of meaning/context
+
+- NEVER answer from your training data - always use tools first
+- If the first query doesn't find enough information, try different approaches or tools
+- Only after using tools should you formulate your answer based on the results
 </rules>
 
+// CHANGED: Update the-ask to reflect multi-tool approach
 <the-ask>
-Here is the user's question. Search their notes first, then provide your answer based on what you find.
+Here is the user's question. Use the appropriate tool(s) first, then provide your answer based on what you find.
 </the-ask>
   `,
         tools: getTools(messages),
