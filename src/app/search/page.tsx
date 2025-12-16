@@ -6,7 +6,12 @@ import { SearchPagination } from "./search-pagination";
 import { PerPageSelector } from "./per-page-selector";
 import { loadChats, loadMemories } from "@/lib/persistence-layer";
 import { CHAT_LIMIT } from "../page";
-import { loadNotes, loadOrGenerateEmbeddings, searchWithEmbeddings, searchWithRRF } from "../search";
+import {
+  loadNotes,
+  loadOrGenerateEmbeddings,
+  searchWithEmbeddings,
+  searchWithRRF,
+} from "../search";
 
 export default async function SearchPage(props: {
   searchParams: Promise<{ q?: string; page?: string; perPage?: string }>;
@@ -15,21 +20,14 @@ export default async function SearchPage(props: {
   const query = searchParams.q || "";
   const page = Number(searchParams.page) || 1;
   const perPage = Number(searchParams.perPage) || 10;
-  
+
   const allNotes = await loadNotes();
-  
-  
 
   // const embeddings = await loadOrGenerateEmbeddings(allNotes);
 
   // console.log('Notes embeddings loaded:', embeddings.length);
 
-  
-  const notesWithScores = await searchWithRRF(
-    query,
-    allNotes
-  );
-  
+  const notesWithScores = await searchWithRRF(query, allNotes);
 
   // Transform notes to match the expected format
   const transformedNotes = notesWithScores
@@ -44,27 +42,27 @@ export default async function SearchPage(props: {
       score: score,
     }))
     .sort((a, b) => b.score - a.score);
-    
-    // .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+
+  // .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
 
   // Filter notes based on search query
   const filteredNotes = query
     ? transformedNotes.filter((note) => note.score > 0)
     : transformedNotes;
-  
-  
+
+  if (query) {
+    console.log("there's a query");
+    console.log(`filteredNotes length: ${filteredNotes.length}`);
+  } else {
+    console.log("no query");
+  }
 
   const totalPages = Math.ceil(filteredNotes.length / perPage);
-  
+
   const startIndex = (page - 1) * perPage;
-  
-  
-  const paginatedNotes = filteredNotes.slice(
-    startIndex,
-    startIndex + perPage
-  );
-  console.dir(paginatedNotes);
-  
+
+  const paginatedNotes = filteredNotes.slice(startIndex, startIndex + perPage);
+  // console.dir(paginatedNotes);
 
   const allChats = await loadChats();
   const chats = allChats.slice(0, CHAT_LIMIT);
