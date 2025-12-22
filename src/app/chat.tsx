@@ -198,6 +198,62 @@ export const Chat = (props: { chat: DB.Chat | null }) => {
                       </Tool>
                     );
                   // src/app/chat.tsx
+                  case "tool-getNotes":
+                    return (
+                      <Tool
+                        key={`${message.id}-${i}`}
+                        className="w-full"
+                        defaultOpen={true}
+                      >
+                        <ToolHeader
+                          title="Get Notes"
+                          type={part.type}
+                          state={part.state}
+                        />
+                        <ToolContent>
+                          <div className="space-y-4 p-4">
+                            {/* Input parameters */}
+                            {part.input && (
+                              <div className="space-y-2">
+                                <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                                  Parameters
+                                </h4>
+                                <div className="text-sm space-y-1">
+                                  {part.input.ids && (
+                                    <div>
+                                      <span className="font-medium">
+                                        Email IDs:
+                                      </span>{" "}
+                                      {part.input.ids.length} email
+                                      {part.input.ids.length !== 1 ? "s" : ""}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Full email content */}
+                            {part.state === "output-available" &&
+                              part.output && (
+                                <FullEmailDisplay notes={part.output.notes} />
+                              )}
+
+                            {/* Error state */}
+                            {part.state === "output-error" && (
+                              <div className="space-y-2">
+                                <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                                  Error
+                                </h4>
+                                <div className="rounded-md bg-destructive/10 p-3 text-destructive text-sm">
+                                  {part.errorText}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </ToolContent>
+                      </Tool>
+                    );
+                  // src/app/chat.tsx
                   // ADDED: New case to display filterEmails tool results
                   case "tool-filterNotes":
                     return (
@@ -371,14 +427,55 @@ export const Chat = (props: { chat: DB.Chat | null }) => {
 };
 
 // src/app/chat.tsx
-// ADDED: NoteResultsGrid component
+// ADDED: Component to display full note content
+const FullEmailDisplay = ({
+  notes,
+}: {
+  notes: Array<{
+    id: string;
+    subject: string;
+    lastModified?: string;
+    content: string;
+  }>;
+}) => {
+  return (
+    <div className="space-y-2">
+      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+        Full Content ({notes.length} {notes.length === 1 ? "email" : "emails"})
+      </h4>
+      <div className="space-y-4">
+        {notes.map((note, idx) => (
+          <div
+            key={idx}
+            className="rounded-md border bg-muted/30 p-4 text-sm space-y-3"
+          >
+            <div>
+              <div className="font-medium text-base">{note.subject}</div>
+              {note.lastModified && (
+                <div className="text-muted-foreground text-xs mt-1">
+                  {new Date(note.lastModified).toLocaleString()}
+                </div>
+              )}
+            </div>
+            <div className="pt-3 border-t whitespace-pre-wrap">
+              {note.content}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+// src/app/chat.tsx
+// CHANGED: Display snippets instead of full bodies
 const NoteResultsGrid = ({
   notes,
 }: {
   notes: Array<{
     id: string;
     subject: string;
-    content: string;
+    snippet?: string;
+    lastModified?: string;
   }>;
 }) => {
   const [showAll, setShowAll] = useState(false);
@@ -388,7 +485,7 @@ const NoteResultsGrid = ({
   return (
     <div className="space-y-2">
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        Results ({notes.length} {notes.length === 1 ? "notel" : "notes"})
+        Results ({notes.length} {notes.length === 1 ? "note" : "notes"})
       </h4>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {displayedNotes.map((note, idx) => (
@@ -397,6 +494,11 @@ const NoteResultsGrid = ({
             className="rounded-md border bg-muted/30 p-3 text-sm space-y-1"
           >
             <div className="font-medium">{note.subject}</div>
+            {note.snippet && (
+              <div className="text-muted-foreground text-xs mt-2 pt-2 border-t">
+                {note.snippet}
+              </div>
+            )}
           </div>
         ))}
       </div>

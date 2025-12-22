@@ -5,8 +5,9 @@ import { z } from "zod";
 
 // ADDED: New tool for filtering emails by exact criteria
 export const filterNotesTool = tool({
+  // src/app/api/chat/filter-tool.ts
   description:
-    "Filter notes by exact criteria like subject, date range, or text content. Use this for precise filtering (e.g., 'notes about grammar', 'notes before 2024-01-01', 'notes containing code samples for a specific language').",
+    "Filter notes by exact criteria like sender, recipient, date range, or text content. Returns metadata with snippets only - use getNotes tool to fetch full content of specific notes.",
   inputSchema: z.object({
     subject: z
       .string()
@@ -80,12 +81,18 @@ export const filterNotesTool = tool({
     );
 
     return {
-      notes: filtered.map((note) => ({
-        id: note.id,
-        subject: note.subject,
-        content: note.content,
-        lastModified: note.lastModified,
-      })),
+      notes: results.map((note) => {
+        const snippet =
+          note.content.slice(0, 150).trim() +
+          (note.content.length > 150 ? "..." : "");
+
+        return {
+          id: note.id,
+          subject: note.subject,
+          lastModified: note.lastModified,
+          snippet,
+        };
+      }),
     };
   },
 });

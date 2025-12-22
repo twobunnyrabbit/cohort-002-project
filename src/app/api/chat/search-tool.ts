@@ -15,7 +15,7 @@ const NUMBER_PASSED_TO_RERANKER = 30;
 export const searchTool = (messages: UIMessage[]) =>
   tool({
     description:
-      "Search notes using both keyword and semantic search. Returns most relevant notes ranked by reciprocal rank fusion.",
+      "Search notes using both keyword and semantic search. Returns metadata with snippets only - use getNotes tool to fetch full content of specific notes.",
     inputSchema: z.object({
       keywords: z
         .array(z.string())
@@ -63,12 +63,22 @@ export const searchTool = (messages: UIMessage[]) =>
         conversationHistory
       );
 
-      const topNotes = rerankedResults.map((r) => ({
-        id: r.note.id,
-        subject: r.note.subject,
-        content: r.note.chunk,
-        score: r.score,
-      }));
+      const topNotes = rerankedResults.map((r) => {
+        // get full note to extract id
+        const fullNote = notes.find((e) => e.id === r.note.id);
+        const snippet =
+          r.note.chunk.slice(0, 150).trim() +
+          (r.note.chunk.length > 150 ? "..." : "");
+
+        return {
+          id: r.note.id,
+          subject: r.note.subject,
+          lastModified: r.note.lastModified,
+          score: r.score,
+          snippet,
+        };
+      });
+
       console.log("Top notes:", topNotes.length);
 
       return {

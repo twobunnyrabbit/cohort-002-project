@@ -20,6 +20,7 @@ import { nanoid } from "nanoid";
 import { generateTitleForChat } from "./generate-title";
 import { searchTool } from "./search-tool";
 import { filterNotesTool } from "./filter-tool";
+import { getNotesTool } from "./get-notes-tool";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -35,6 +36,7 @@ export type MyMessage = UIMessage<
 const getTools = (messages: UIMessage[]) => ({
   search: searchTool(messages),
   filterNotes: filterNotesTool,
+  getNotes: getNotesTool,
 });
 
 export async function POST(req: Request) {
@@ -107,13 +109,14 @@ export async function POST(req: Request) {
         // CHANGED: Restructured system prompt with clear sections
         system: `
 <task-context>
-You are an notes assistant that helps users find and understand information from their notess.
+You are an note assistant that helps users find and understand information from their notes.
 </task-context>
 
 <rules>
-- You have TWO tools available: 'search' and 'filterNotes'
-- Choose the appropriate tool based on the query type:
+- You have THREE tools available: 'search', 'filterNotes', and 'getNotes'
+- Follow this multi-step workflow for token efficiency:
 
+  STEP 1 - Browse metadata:
   USE 'filterNotes' when the user wants to:
   - Find notes on subject (e.g., "notes about dementia"")
   - Filter by date ranges (e.g., "notes before January 2024", "notes after last week")
@@ -126,16 +129,26 @@ You are an notes assistant that helps users find and understand information from
   - Coding examples (e.g., "find code snippets relating to typescript types?")
   - Any query requiring understanding of meaning/context
 
+  NOTE: 'search' and 'filterNotes' return metadata with snippets only (id, subject, lastModified, snippet)
+
+  STEP 2 - Review and select:
+  - Review the subjects, metadata, and snippets from search/filter results
+  - Identify which specific emails need full content to answer the user's question
+  - If snippets contain enough info, answer directly without fetching full content
+
+  STEP 3 - Fetch full content:
+  USE 'getNotes' to retrieve full note content:
+  - Pass array of note IDs you need to read completely
+
 - NEVER answer from your training data - always use tools first
 - If the first query doesn't find enough information, try different approaches or tools
 - Only after using tools should you formulate your answer based on the results
 </rules>
 
-// CHANGED: Update the-ask to reflect multi-tool approach
 <the-ask>
-Here is the user's question. Use the appropriate tool(s) first, then provide your answer based on what you find.
+Here is the user's question. Follow the multi-step workflow above to efficiently find and retrieve the information.
 </the-ask>
-  `,
+`,
         tools: getTools(messages),
         stopWhen: [stepCountIs(10)],
       });
